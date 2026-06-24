@@ -891,28 +891,125 @@ Flux de gestion :
 4. Au moment du blind test, le frontend recoit l'URL, initialise le lecteur et demarre
    la lecture a `starts_at_ms`.
 
-#### Comparatif des solutions
+#### Pourquoi un provider europeen
 
-| Solution | Type | Avantages | Inconvenients |
-| -------- | ---- | --------- | ------------- |
-| **Cloudflare Stream** | Manage | Integre au CDN Cloudflare deja utilise, prix au minute stockee, faible latence | Fonctionnalites avancees limitees |
-| **Bunny Stream** | Manage | Tres bon rapport qualite/prix, CDN mondial, API simple | Ecosysteme moins mature que Cloudflare |
-| **Mux** | Manage | API tres complete, analytics, webhooks, SLA fort | Couteux a grande echelle |
-| **Cloudflare R2 + FFmpeg** | Hybride | Stockage pas cher, CDN Cloudflare natif, controle total | Encodage HLS a gerer (job k8s ou CI) |
-| **MinIO + HLS** | Auto-heberge | Gratuit, souverainete totale, compatible S3 | Encodage et CDN a configurer et maintenir |
+Au-dela des limites de YouTube, le choix du provider VOD a des implications legales
+directes pour un deploiement mondial :
+
+- les services americains sont soumis au **Cloud Act** : les autorites americaines
+  peuvent exiger l'acces aux donnees hebergees, meme sur des serveurs situes en Europe ;
+- le **RGPD** impose de connaitre precisement ou les donnees sont stockees et traitees ;
+- les extraits audio/video peuvent etre soumis au droit d'auteur — heberger ce contenu
+  chez un provider europeen simplifie la conformite legale et les relations avec les
+  ayants droit.
+
+Un service VOD manage europeen repond a toutes ces contraintes par defaut, sans
+configuration additionnelle.
+
+#### Comparatif des solutions VOD europeennes
+
+| Solution | Pays | Type | Avantages | Inconvenients |
+| -------- | ---- | ---- | --------- | ------------- |
+| **Infomaniak VOD/AOD** | Suisse | Manage | RGPD natif, loi suisse sur la protection des donnees (plus stricte que l'UE), encodage automatique, lecteur integre, API REST, meme provider possible pour DNS et hebergement | CDN moins etendu hors Europe qu'un provider mondial |
+| **Bunny Stream** | Slovenie (UE) | Manage | Societe europeenne, CDN mondial depuis datacenters UE, prix a l'usage tres competitifs, API simple, encodage HLS automatique | Moins de fonctionnalites avancees qu'un encodeur dedie |
+| **OVHcloud Object Storage + FFmpeg** | France (UE) | Hybride | Souverainete totale, stockage S3 compatible, prix previsibles, datacenter France | Encodage HLS a orchestrer (CronJob k8s ou pipeline CI) |
+| **Scaleway Object Storage** | France (UE) | Hybride | Stack 100 % europeenne, bonne integration avec les outils DevOps | Meme contrainte d'encodage qu'OVHcloud |
+| **NAS loue (Synology) + Job FFmpeg k8s** | UE (selon provider) | Auto-heberge | Souverainete totale, cout par Go tres bas, RAID natif Synology, CPU du NAS preserve — FFmpeg tourne sur k8s, stockage independant du cluster | NAS = point de defaillance supplementaire, latence reseau cluster-NAS a maitriser, pas de CDN integre |
+
+#### Option auto-hebergee : NAS loue en datacenter + transcoding Kubernetes
+
+Pour une souverainete totale des donnees sans surcharger le cluster en stockage,
+la solution retenue est un **NAS Synology loue chez un hebergeur europeen en datacenter**
+(Infomaniak, OVHcloud, ou equivalent), sur lequel tourne **MinIO via Docker** (Synology
+Container Manager). Le transcoding est delegue au cluster via un **Job FFmpeg** ephemere :
+le CPU faible du NAS est preserve pour servir les fichiers, tandis que le cluster
+fournit la puissance de calcul pour l'encodage.
+
+```mermaid
+flowchart TD
+  Admin[Admin Front] -->|1 Upload MP3/MP4| Back[Backend Rust]
+  Back -->|2 PUT fichier brut via S3| Minio[(MinIO sur NAS Synology\ndatacenter europeen)]
+  Back -->|3 Declenche Job FFmpeg| FFmpeg[Job FFmpeg — cluster k8s]
+  FFmpeg -->|4 GET source via S3| Minio
+  FFmpeg -->|5 PUT segments HLS| Minio
+  Back -->|6 Stocke URL HLS| DB[(CouchDB)]
+  Minio -->|7 Stream HLS| Game[Game Front]
+  Minio -->|7 Stream HLS| Buzzer[Virtual Buzzer]
+```
+
+**Flux detaille :**
+
+1. L'administrateur uploade un extrait (MP3, MP4) via l'interface admin.
+2. Le backend stocke le fichier brut dans un bucket MinIO sur le NAS (`raw/`).
+3. Le backend cree un `Job` Kubernetes FFmpeg en passant le chemin source et la
+   destination HLS comme variables d'environnement.
+4. Le Job lit le fichier brut depuis MinIO via l'API S3 (endpoint HTTPS du NAS).
+5. FFmpeg encode et ecrit les segments HLS (`.m3u8` + fichiers `.ts`) dans le
+   bucket MinIO (`hls/`).
+6. Le backend enregistre l'URL du manifest HLS dans CouchDB.
+7. Les frontends streament les segments HLS directement depuis le NAS.
+
+**Ressources Kubernetes necessaires :**
+
+| Ressource | Role |
+| --------- | ---- |
+| `Secret` credentials MinIO NAS | Endpoint, access key, secret key |
+| `Job` FFmpeg | Transcoding a la demande, cree par le backend apres chaque upload |
+
+Le NAS n'est pas dans le cluster — aucun `StatefulSet` ni `PVC` k8s n'est requis
+pour le stockage media.
+
+**Points de vigilance :**
+
+- Le NAS et le cluster doivent etre dans le meme datacenter ou relies par un reseau
+  prive pour minimiser la latence et les couts de transfert (le Job FFmpeg peut
+  transferer plusieurs centaines de Mo entre les deux) ;
+- le NAS devient un point de defaillance pour le streaming : activer le RAID Synology
+  (RAID 1 minimum) et surveiller la sante des disques via les alertes DSM ;
+- dimensionner la bande passante sortante du NAS selon l'audience — chaque joueur
+  qui streame consomme environ 128–320 kbps pour de l'audio HLS ;
+- les segments HLS etant des fichiers statiques, un reverse proxy cache (Nginx) ou
+  un CDN frontal peut etre ajoute devant MinIO si la charge monte.
 
 #### Recommandation pour ce projet
 
-**Cloudflare Stream** est la solution la plus coherente : Cloudflare gere deja le DNS et les
-certificats TLS de ce projet. L'ajout du service video ne cree pas de nouveau fournisseur.
+**Infomaniak VOD/AOD** reste la solution recommandee pour un deploiement standard :
+entierement manage, heberge en Suisse, encodage et CDN inclus, sans infrastructure
+supplementaire a operer.
 
-Pour un TP ou une premiere production : **Bunny Stream** offre le meilleur rapport
-simplicite/cout avec une mise en place en moins d'une heure.
+**Bunny Stream** est la meilleure alternative si le critere est le cout : societe
+europeenne, CDN mondial, mise en place en moins d'une heure.
+
+**NAS loue + Job FFmpeg k8s** est la solution retenue pour une souverainete totale,
+avec une separation claire : le NAS stocke, le cluster transcodes. C'est le meilleur
+compromis cout/controle pour un volume important de contenu video.
+
+#### Integration dans Kubernetes
+
+**Services manages (Infomaniak, Bunny Stream) :**
+
+```bash
+kubectl create secret generic neon-beat-prod-vod-token \
+  --namespace neon-beat \
+  --from-literal=VOD_API_TOKEN='<token-infomaniak-ou-bunny>'
+```
+
+**Option NAS + Job FFmpeg :**
+
+```bash
+kubectl create secret generic neon-beat-prod-minio-nas \
+  --namespace neon-beat \
+  --from-literal=MINIO_ENDPOINT='https://nas.neon-beat.example.com:9000' \
+  --from-literal=MINIO_ACCESS_KEY='<access-key>' \
+  --from-literal=MINIO_SECRET_KEY='<secret-key>'
+```
+
+Le backend cree un `Job` k8s apres chaque upload en injectant ce `Secret` dans le
+conteneur FFmpeg. Aucun autre manifeste supplementaire n'est necessaire.
 
 Le modele de donnees actuel (`url`, `starts_at_ms`, `guess_duration_ms`, `type`) est
-volontairement generique. La migration de YouTube vers n'importe quel service VOD ne
-necessite aucun changement de schema — uniquement la mise a jour des valeurs `url`
-dans CouchDB.
+volontairement generique. Quelle que soit l'option retenue, la migration ne necessite
+aucun changement de schema — uniquement la mise a jour des valeurs `url` dans CouchDB.
 
 ---
 
