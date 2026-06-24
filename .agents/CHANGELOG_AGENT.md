@@ -55,6 +55,25 @@
 - Mise à jour de `ARCHITECTURE_DEPLOIEMENT_GLOBAL_NEON_BEAT.md` : section 10 remaniée
   pour refléter la structure réelle du ZIP
 
+### 2026-06-24 — Session Claude Code : audit sécurité frontend + évolutions architecture
+
+**Document d'architecture :**
+- Section 11.7 ajoutée : EDA (Event-Driven Architecture) — event broker Redis/NATS, CQRS, Event Sourcing
+- Section 11.6 enrichie : stratégie VOD multi-région (Infomaniak EU / Cloudflare Stream US / Alibaba ApsaraVideo Asie), geo-routing CF-IPCountry, modèle CouchDB multi-URL, Job k8s multiregion-publish
+- Tableau VOD nettoyé : OVHcloud et Scaleway retirés (pas des VOD managés), Gcore ajouté
+- Corrections de cohérence : `ComposantRo` → `Role`, HPA backend retiré de §4.4, COUCH_BASE_URL corrigé (`neon-beat-prod-couchdb`), VITE_API_BASE_URL corrigé (`api.neon-beat.example.com`), schéma 5.3 corrigé (1 seul pod backend), espaces tableau §10
+
+**Audit sécurité frontend :**
+- Analyse de `GameManagementContext.tsx` (architecture + OWASP)
+- 8 problèmes documentés dans `.agents/SECURITY_AUDIT_FRONT.md`
+- Méthodes de correction détaillées avec exemples de code pour chaque problème
+
+**Analyse SRP et plan de refactoring :**
+- Audit des 4 microservices (back Rust + 3 frontends React) : 17 fichiers à responsabilités multiples identifiés
+- Plan de refactoring complet documenté dans `.agents/REFACTORING_PLAN.md`
+- Diagrammes de classes et de fichiers (Mermaid) pour chaque service
+- Patterns proposés : composition de hooks, traits Rust injectés, dispatcher SSE, factory, adapter, fonctions pures partagées
+
 ### Session initiale (date inconnue)
 - Création des manifestes prod et preprod (namespace, configmap, deployment, service, ingress, secret.example)
 - Mise en place de cert-manager avec Cloudflare DNS01 (migration depuis Infomaniak)
