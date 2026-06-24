@@ -1,0 +1,85 @@
+# =============================================================================
+# HorizontalPodAutoscaler prod - Neon Beat
+#
+# Le backend n'est PAS inclus ici : son état temps réel est en mémoire.
+# Scaler le backend sans event bus (Redis/NATS) provoquerait des
+# désynchronisations. Voir DECISIONS.md D003 et D006.
+#
+# Les frontends sont stateless : ils peuvent être scalés librement.
+# =============================================================================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neon-beat-prod-game-front-hpa
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-game-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: neon-beat-prod-game-front
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neon-beat-prod-admin-front-hpa
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-admin-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: neon-beat-prod-admin-front
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neon-beat-prod-buzzer-front-hpa
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-virtual-buzzer
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: neon-beat-prod-buzzer-front
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

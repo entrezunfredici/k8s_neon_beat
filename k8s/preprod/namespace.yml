@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: neon-beat
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod

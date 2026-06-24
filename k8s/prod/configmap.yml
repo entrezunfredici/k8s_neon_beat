@@ -1,0 +1,32 @@
+# =============================================================================
+# ConfigMap prod - Neon Beat
+#
+# Secrets requis:
+#   kubectl create secret generic neon-beat-prod-secrets \
+#     --namespace neon-beat \
+#     --from-literal=COUCH_USERNAME=admin \
+#     --from-literal=COUCH_PASSWORD='<password>'
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neon-beat-prod-config
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat
+    app.kubernetes.io/instance: prod
+data:
+  ENVIRONMENT: "prod"
+  RUST_LOG: "info"
+
+  # Backend Rust
+  PORT: "8080"
+  NEON_STORE: "couch"
+  COUCH_BASE_URL: "http://neon-beat-prod-couchdb:5984"
+  COUCH_DB: "neon_beat"
+
+  # Frontends. Vite lit ces variables au build; gardees ici pour les images
+  # qui supportent une configuration runtime ou pour documenter l'URL cible.
+  VITE_API_BASE_URL: "https://api.neon-beat.example.com"
+  PUBLIC_APP_URL: "https://neon-beat.example.com"

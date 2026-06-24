@@ -1,0 +1,86 @@
+# =============================================================================
+# Ingress prod - Neon Beat
+#
+# Replace example domains before applying:
+#   neon-beat.example.com
+#   api.neon-beat.example.com
+#
+# The API is intentionally hosted on a separate domain because the backend owns
+# /admin/** API routes while the admin frontend is served under /admin/.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: neon-beat-prod-api
+  namespace: neon-beat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.neon-beat.example.com
+      secretName: neon-beat-prod-api-tls
+  rules:
+    - host: api.neon-beat.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-back
+                port:
+                  number: 80
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: neon-beat-prod-fronts
+  namespace: neon-beat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - neon-beat.example.com
+      secretName: neon-beat-prod-fronts-tls
+  rules:
+    - host: neon-beat.example.com
+      http:
+        paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-admin-front
+                port:
+                  number: 80
+          - path: /buzzer
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-buzzer-front
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-game-front
+                port:
+                  number: 80

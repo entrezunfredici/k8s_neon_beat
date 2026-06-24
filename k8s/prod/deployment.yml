@@ -1,0 +1,299 @@
+# =============================================================================
+# Workloads prod - Neon Beat
+#
+# Images a adapter selon votre registry CI/CD:
+#   ghcr.io/neon-beat/neon-beat-back:prod
+#   ghcr.io/neon-beat/neon-beat-game-front:prod
+#   ghcr.io/neon-beat/neon-beat-admin-front:prod
+#   ghcr.io/neon-beat/neon-beat-virtual-buzzer:prod
+# =============================================================================
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neon-beat-prod-couchdb
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  serviceName: neon-beat-prod-couchdb
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: couchdb
+      app.kubernetes.io/instance: prod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: couchdb
+        app.kubernetes.io/part-of: neon-beat
+        app.kubernetes.io/instance: prod
+    spec:
+      containers:
+        - name: couchdb
+          image: couchdb:3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5984
+          env:
+            - name: COUCHDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: neon-beat-prod-secrets
+                  key: COUCH_USERNAME
+            - name: COUCHDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neon-beat-prod-secrets
+                  key: COUCH_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: 5984
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: 5984
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          volumeMounts:
+            - name: couchdb-data
+              mountPath: /opt/couchdb/data
+  volumeClaimTemplates:
+    - metadata:
+        name: couchdb-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-beat-prod-back
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-back
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  # Keep one replica until backend realtime state is externalized through
+  # Redis/NATS or another event bus.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-back
+      app.kubernetes.io/instance: prod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: neon-beat-back
+        app.kubernetes.io/part-of: neon-beat
+        app.kubernetes.io/instance: prod
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/neon-beat/neon-beat-back:prod
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: neon-beat-prod-config
+          env:
+            - name: COUCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: neon-beat-prod-secrets
+                  key: COUCH_USERNAME
+            - name: COUCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neon-beat-prod-secrets
+                  key: COUCH_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-beat-prod-game-front
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-game-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-game-front
+      app.kubernetes.io/instance: prod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: neon-beat-game-front
+        app.kubernetes.io/part-of: neon-beat
+        app.kubernetes.io/instance: prod
+    spec:
+      containers:
+        - name: game-front
+          image: ghcr.io/neon-beat/neon-beat-game-front:prod
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: neon-beat-prod-config
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-beat-prod-admin-front
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-admin-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-admin-front
+      app.kubernetes.io/instance: prod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: neon-beat-admin-front
+        app.kubernetes.io/part-of: neon-beat
+        app.kubernetes.io/instance: prod
+    spec:
+      containers:
+        - name: admin-front
+          image: ghcr.io/neon-beat/neon-beat-admin-front:prod
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: neon-beat-prod-config
+          readinessProbe:
+            httpGet:
+              path: /admin/
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-beat-prod-buzzer-front
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-virtual-buzzer
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-virtual-buzzer
+      app.kubernetes.io/instance: prod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: neon-beat-virtual-buzzer
+        app.kubernetes.io/part-of: neon-beat
+        app.kubernetes.io/instance: prod
+    spec:
+      containers:
+        - name: buzzer-front
+          image: ghcr.io/neon-beat/neon-beat-virtual-buzzer:prod
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: neon-beat-prod-config
+          readinessProbe:
+            httpGet:
+              path: /buzzer/
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

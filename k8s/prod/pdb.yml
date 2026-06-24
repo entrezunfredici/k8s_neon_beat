@@ -1,0 +1,61 @@
+# =============================================================================
+# PodDisruptionBudget prod - Neon Beat
+#
+# Garantit qu'au moins 1 pod de chaque frontend reste disponible lors
+# des opérations de maintenance volontaires (drain de node, rolling update).
+#
+# Le backend (1 replica) et CouchDB (StatefulSet) ne sont pas inclus :
+# un PDB avec minAvailable: 1 sur un seul replica bloquerait les drains.
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: neon-beat-prod-game-front-pdb
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-game-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-game-front
+      app.kubernetes.io/instance: prod
+
+---
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: neon-beat-prod-admin-front-pdb
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-admin-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-admin-front
+      app.kubernetes.io/instance: prod
+
+---
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: neon-beat-prod-buzzer-front-pdb
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-virtual-buzzer
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neon-beat-virtual-buzzer
+      app.kubernetes.io/instance: prod

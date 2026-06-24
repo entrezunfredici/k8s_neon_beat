@@ -1,0 +1,11 @@
+# Deprecated: use k8s/preprod/ingress.yml instead.
+#
+# Kept only to make old automation fail safely with a clear object name instead
+# of creating obsolete MyMemoMaster resources.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neon-beat-ingress-test-deprecated
+  namespace: neon-beat-preprod
+data:
+  message: "Use k8s/preprod/ingress.yml for Neon Beat preprod ingress."

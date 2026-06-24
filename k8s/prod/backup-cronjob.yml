@@ -1,0 +1,118 @@
+# =============================================================================
+# CronJob backup CouchDB prod - Neon Beat
+#
+# Exécute une sauvegarde quotidienne de la base CouchDB à 02h00 UTC.
+#
+# Stratégie :
+#   - Dump JSON via l'API CouchDB _all_docs (format portable)
+#   - Stockage dans un volume persistant monté en écriture
+#   - Rotation : conservation des 7 dernières sauvegardes
+#
+# Prérequis :
+#   - PersistentVolumeClaim `neon-beat-prod-backup-pvc` existant
+#   - Secret `neon-beat-prod-secrets` avec COUCH_USERNAME / COUCH_PASSWORD
+#
+# Appliquer le PVC avant ce CronJob :
+#   kubectl apply -f backup-pvc.yml
+# =============================================================================
+
+# ── PersistentVolumeClaim pour les sauvegardes ───────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neon-beat-prod-backup-pvc
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-backup
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+
+# ── CronJob de sauvegarde ─────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: neon-beat-prod-couchdb-backup
+  namespace: neon-beat
+  labels:
+    app.kubernetes.io/name: neon-beat-backup
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: prod
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: neon-beat-backup
+            app.kubernetes.io/part-of: neon-beat
+            app.kubernetes.io/instance: prod
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: curlimages/curl:8.7.1
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: COUCH_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: neon-beat-prod-secrets
+                      key: COUCH_USERNAME
+                - name: COUCH_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: neon-beat-prod-secrets
+                      key: COUCH_PASSWORD
+                - name: COUCH_HOST
+                  value: "neon-beat-prod-couchdb"
+                - name: COUCH_DB
+                  value: "neon_beat"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  BACKUP_DIR="/backup"
+                  TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+                  BACKUP_FILE="${BACKUP_DIR}/${COUCH_DB}_${TIMESTAMP}.json"
+
+                  echo "[backup] Starting backup of ${COUCH_DB} at ${TIMESTAMP}"
+
+                  curl -sf \
+                    -u "${COUCH_USER}:${COUCH_PASS}" \
+                    "http://${COUCH_HOST}:5984/${COUCH_DB}/_all_docs?include_docs=true" \
+                    -o "${BACKUP_FILE}"
+
+                  echo "[backup] Written to ${BACKUP_FILE} ($(wc -c < "${BACKUP_FILE}") bytes)"
+
+                  # Rotation : supprime les sauvegardes de plus de 7 jours
+                  find "${BACKUP_DIR}" -name "${COUCH_DB}_*.json" -mtime +7 -delete
+                  echo "[backup] Rotation complete"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: neon-beat-prod-backup-pvc

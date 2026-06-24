@@ -1,0 +1,83 @@
+# =============================================================================
+# Ingress generique - Neon Beat
+#
+# Ce fichier sert de template pour un deploiement simple dans le namespace
+# neon-beat. Pour les environnements complets, preferer:
+#   - k8s/preprod/ingress.yml
+#   - k8s/prod/ingress.yml
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: neon-beat-api
+  namespace: neon-beat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.yourdomain.com
+      secretName: neon-beat-api-tls
+  rules:
+    - host: api.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-back
+                port:
+                  number: 80
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: neon-beat-fronts
+  namespace: neon-beat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app.yourdomain.com
+      secretName: neon-beat-fronts-tls
+  rules:
+    - host: app.yourdomain.com
+      http:
+        paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-admin-front
+                port:
+                  number: 80
+          - path: /buzzer
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-buzzer-front
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: neon-beat-prod-game-front
+                port:
+                  number: 80

@@ -1,0 +1,106 @@
+# =============================================================================
+# Services preprod - Neon Beat
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-beat-preprod-couchdb
+  namespace: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/instance: preprod
+  ports:
+    - name: http
+      port: 5984
+      targetPort: 5984
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-beat-preprod-back
+  namespace: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: neon-beat-back
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: neon-beat-back
+    app.kubernetes.io/instance: preprod
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-beat-preprod-game-front
+  namespace: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: neon-beat-game-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: neon-beat-game-front
+    app.kubernetes.io/instance: preprod
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-beat-preprod-admin-front
+  namespace: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: neon-beat-admin-front
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: neon-beat-admin-front
+    app.kubernetes.io/instance: preprod
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-beat-preprod-buzzer-front
+  namespace: neon-beat-preprod
+  labels:
+    app.kubernetes.io/name: neon-beat-virtual-buzzer
+    app.kubernetes.io/part-of: neon-beat
+    app.kubernetes.io/instance: preprod
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: neon-beat-virtual-buzzer
+    app.kubernetes.io/instance: preprod
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
