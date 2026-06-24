@@ -911,9 +911,8 @@ configuration additionnelle.
 | Solution | Pays | Type | Avantages | Inconvenients |
 | -------- | ---- | ---- | --------- | ------------- |
 | **Infomaniak VOD/AOD** | Suisse | Manage | RGPD natif, loi suisse sur la protection des donnees (plus stricte que l'UE), encodage automatique, lecteur integre, API REST, meme provider possible pour DNS et hebergement | CDN moins etendu hors Europe qu'un provider mondial |
-| **Bunny Stream** | Slovenie (UE) | Manage | Societe europeenne, CDN mondial depuis datacenters UE, prix a l'usage tres competitifs, API simple, encodage HLS automatique | Moins de fonctionnalites avancees qu'un encodeur dedie |
-| **OVHcloud Object Storage + FFmpeg** | France (UE) | Hybride | Souverainete totale, stockage S3 compatible, prix previsibles, datacenter France | Encodage HLS a orchestrer (CronJob k8s ou pipeline CI) |
-| **Scaleway Object Storage** | France (UE) | Hybride | Stack 100 % europeenne, bonne integration avec les outils DevOps | Meme contrainte d'encodage qu'OVHcloud |
+| **Bunny Stream** | Slovenie (UE) | Manage | Societe europeenne, CDN mondial depuis datacenters UE, prix tres competitifs a l'usage, API simple, encodage HLS automatique | Moins de fonctionnalites avancees qu'un encodeur dedie |
+| **Gcore Video Streaming** | Luxembourg (UE) | Manage | Infrastructure edge europeenne, faible latence, encodage automatique, bon CDN mondial, SLA fort | Moins connu, ecosysteme plus restreint qu'Infomaniak ou Bunny |
 | **NAS loue (Synology) + Job FFmpeg k8s** | UE (selon provider) | Auto-heberge | Souverainete totale, cout par Go tres bas, RAID natif Synology, CPU du NAS preserve — FFmpeg tourne sur k8s, stockage independant du cluster | NAS = point de defaillance supplementaire, latence reseau cluster-NAS a maitriser, pas de CDN integre |
 
 #### Option auto-hebergee : NAS loue en datacenter + transcoding Kubernetes
